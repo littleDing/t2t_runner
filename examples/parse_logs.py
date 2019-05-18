@@ -5,7 +5,7 @@
 #        Author: littleding - waigi.ding@gmail.com
 #   Description: ---
 #        Create: 2019-05-16 22:16:34
-# Last modified: 2019-05-16 23:08:33
+# Last modified: 2019-05-18 11:22:09
 
 import logging
 import unittest
@@ -51,16 +51,17 @@ def main():
       temp['train_begin_ts'] = train_begin_ts 
       temp['eval_begin_ts'] = eval_begin_ts
       temp['eval_end_ts'] = eval_end_ts
-      temp['train_dt'] = (eval_begin_ts - train_begin_ts).seconds/60.0
-      temp['eval_dt'] = (eval_end_ts - eval_begin_ts).seconds/60.0
-      temp['steps'] = temp['global_step'] - last_step
+      temp['train_dt'] = round((eval_begin_ts - train_begin_ts).seconds/60.0, 2)
+      temp['eval_dt'] = round((eval_end_ts - eval_begin_ts).seconds/60.0, 2)
+      temp['steps'] = int(temp['global_step'] - last_step)
       buff.append(temp)
       train_begin_ts = eval_end_ts
       last_step = temp['global_step']
 
   data = pd.DataFrame(buff)
   data = data[metrics+'train_begin_ts,train_dt,eval_dt,steps'.split(',')]
-  data['steps/hour'] = data.steps / (data.train_dt / 60)
+  data['steps/hour'] = (data.steps / (data.train_dt / 60)).map(int)
+  data['tot_hour'] = ((data.train_dt + data.eval_dt).cumsum() / 60).round(2)
   data['global_step'] = data.global_step.map(int)
   print data
 
