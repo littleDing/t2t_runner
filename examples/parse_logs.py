@@ -5,7 +5,7 @@
 #        Author: littleding - waigi.ding@gmail.com
 #   Description: ---
 #        Create: 2019-05-16 22:16:34
-# Last modified: 2019-05-18 11:22:09
+# Last modified: 2019-05-29 09:17:31
 
 import logging
 import unittest
@@ -28,12 +28,23 @@ def parse_ts(line):
     t = datetime.datetime.strptime(line[-19:], '%Y-%m-%d-%H:%M:%S')
   return t + datetime.timedelta(seconds=3600*8)
 
-def main():
+def main(fstderr='stderr', fstdout='stdout'):
   metrics = 'global_step,loss,accuracy,accuracy_per_sequence,accuracy_top5,approx_bleu_score,neg_log_perplexity,rouge_2_fscore,rouge_L_fscore'.split(',')
+  renames = {
+    'global_step' : 'gstep',
+    'accuracy_per_sequence' : 'acc_per_seq',
+    'accuracy' : 'acc',
+    'accuracy_top5' : 'acc_top5',
+    'approx_bleu_score' : 'a_bleu',
+    'neg_log_perplexity' : 'neg_log_ppl',
+    'rouge_2_fscore' : 'rouge2_f',
+    'rouge_L_fscore' : 'rougeL_f',
+    'train_begin_ts' : 'train_b_ts',
+  }
   buff = []
   in_eval = False
   last_step = 0
-  for line in sys.stdin:
+  for line in open(fstderr):
     line = line.strip()
     if line.find('Adding visible gpu devices') != -1:
       add_gpu_ts = datetime.datetime.strptime(line[:19], '%Y-%m-%d %H:%M:%S')
@@ -63,6 +74,21 @@ def main():
   data['steps/hour'] = (data.steps / (data.train_dt / 60)).map(int)
   data['tot_hour'] = ((data.train_dt + data.eval_dt).cumsum() / 60).round(2)
   data['global_step'] = data.global_step.map(int)
+  data = data.groupby('global_step').head(1)
+  data.index = range(data.shape[0])
+
+  BLEU_uncased = []
+  BLEU_cased = []
+  for line in open(fstdout):
+    if line.startswith('BLEU_uncased'):
+      BLEU_uncased.append(float(line.split('=')[1].strip()))
+      
+    if line.startswith('BLEU_cased'):
+      BLEU_cased.append(float(line.split('=')[1].strip()))
+  data['BLEU_uncased'] = BLEU_uncased
+  data['BLEU_cased'] = BLEU_cased
+  data = data.rename(columns=renames)
+
   print data
 
 
